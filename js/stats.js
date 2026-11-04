@@ -57,8 +57,6 @@ function batDerived(t, lg) {
 
   d.AVG   = div(t.H, t.AB);
   d.OBP   = div(t.H + t.BB + t.HBP, t.AB + t.BB + t.HBP + t.SF);
-  // 参考値: 失策出塁(ROE)も「出塁」に数えた出塁率。公式の出塁率では失策出塁は凡打扱い
-  d.OBPe  = div(t.H + t.BB + t.HBP + (t.ROE || 0), t.AB + t.BB + t.HBP + t.SF);
   d.SLG   = div(d.TB, t.AB);
   d.OPS   = (d.OBP !== null && d.SLG !== null) ? d.OBP + d.SLG : null;
   d.ISO   = (d.SLG !== null && d.AVG !== null) ? d.SLG - d.AVG : null;
