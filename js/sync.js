@@ -11,7 +11,7 @@ const SYNC_QUEUE_KEY = "padres-sync-queue";
 
 // このアプリが想定する Code.gs の版数。接続先がこれより古い場合は
 // 貼り替え・再デプロイが未反映なので、共有カードで警告する
-const SYNC_EXPECTED_VERSION = "9";
+const SYNC_EXPECTED_VERSION = "10";
 
 let syncConf = null;
 try { syncConf = JSON.parse(localStorage.getItem(SYNC_CONF_KEY) || "null"); } catch (e) { /* ignore */ }
@@ -250,7 +250,7 @@ async function sendOpJsonp(op) {
 
 /* ---------------- 取得と正規化 ---------------- */
 
-const SYNC_BAT_NUMS = ["AB","R","H","D2","T3","HR","RBI","BB","HBP","SO","SH","SF","GDP","SB","CS"];
+const SYNC_BAT_NUMS = ["AB","R","H","D2","T3","HR","RBI","BB","HBP","SO","SH","SF","GDP","SB","CS","ROE"];
 const SYNC_PIT_NUMS = ["GS","OUTS","BF","HA","HRA","BBA","HBPA","SOA","RA","ER","W","L","SV","HLD"];
 
 // 瞬間(ミリ秒)を最も近い日付に丸めて yyyy-MM-dd にする(TZ差の1日ズレ防止)
@@ -334,9 +334,12 @@ function normalizeRemote(r, prev) {
     phase: phaseFromRemote(g, prevPhase.get(String(g.id))),
     note: phaseInNote(g) ? "" : String(g.note ?? "")
   }));
+  const prevBat = new Map(((prev && prev.batting) || []).map(l => [String(l.id), l]));
   base.batting = (r.batting || []).map(l => {
     const o = { id: String(l.id), gameId: String(l.gameId), playerId: String(l.playerId) };
     SYNC_BAT_NUMS.forEach(f => o[f] = +l[f] || 0);
+    // 旧版サーバーは失策出塁(ROE)列を持たないので、届かないときは端末側の値を残す
+    if (l.ROE === undefined) o.ROE = +((prevBat.get(o.id) || {}).ROE) || 0;
     return o;
   });
   base.pitching = (r.pitching || []).map(l => {
