@@ -22,7 +22,7 @@
 const TOKEN = "padres";
 
 // 貼り替え・再デプロイが反映されたか確認するための版数(アプリの共有カードに表示されます)
-const VERSION = "8";
+const VERSION = "9";
 
 const SCHEMAS = {
   players:  ["id","name","number","pos","throws","bats","active"],
@@ -246,6 +246,9 @@ function readAll() {
  */
 function repairPhase(rec) {
   const ph = String(rec.phase).trim().toLowerCase();
+  const nt = String(rec.note).trim().toLowerCase();
+  // 逆向きのずれ: 区分がメモ列に入っている
+  if (ph === "" && (nt === "post" || nt === "regular")) { rec.phase = nt; rec.note = ""; return; }
   if (ph === "" || ph === "post" || ph === "regular") { rec.phase = ph; return; }
   if (String(rec.note).trim() === "") rec.note = rec.phase;
   rec.phase = "";

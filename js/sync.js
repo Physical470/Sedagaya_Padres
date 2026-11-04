@@ -11,7 +11,7 @@ const SYNC_QUEUE_KEY = "padres-sync-queue";
 
 // このアプリが想定する Code.gs の版数。接続先がこれより古い場合は
 // 貼り替え・再デプロイが未反映なので、共有カードで警告する
-const SYNC_EXPECTED_VERSION = "8";
+const SYNC_EXPECTED_VERSION = "9";
 
 let syncConf = null;
 try { syncConf = JSON.parse(localStorage.getItem(SYNC_CONF_KEY) || "null"); } catch (e) { /* ignore */ }
@@ -20,6 +20,14 @@ let syncBusy = false;
 let syncPulling = false;
 let syncStatus = { state: syncConf ? "idle" : "off", at: null, message: "" };
 let syncServerVersion = null;   // 接続先Code.gsの版数(再デプロイの反映確認用)
+const SYNC_SERVER_VER_KEY = "padres-sync-server-version";
+// 起動直後の送信でも使えるよう、前回わかった版数を覚えておく
+let lastServerVersion = (() => { try { return localStorage.getItem(SYNC_SERVER_VER_KEY) || ""; } catch (e) { return ""; } })();
+function noteServerVersion(v) {
+  syncServerVersion = v;
+  lastServerVersion = String(v);
+  try { localStorage.setItem(SYNC_SERVER_VER_KEY, lastServerVersion); } catch (e) { /* ignore */ }
+}
 
 function syncEnabled() { return !!(syncConf && syncConf.url); }
 
@@ -140,7 +148,7 @@ async function jsonpGet(c) {
   const data = await jsonpRequest(c, "action=all");
   if (data.error) throw new Error(data.error);
   if (!data.db) throw new Error("応答の形式が不正です(Code.gsが最新か確認してください)");
-  syncServerVersion = data.version || "旧";
+  noteServerVersion(data.version || "旧");
   return data.db;
 }
 
@@ -170,7 +178,7 @@ async function apiGet(conf) {
       const data = await parseApiResponse(res);
       if (data.error) throw new Error(data.error);
       if (!data.db) throw new Error("応答の形式が不正です(Code.gsが最新か確認してください)");
-      syncServerVersion = data.version || "旧";
+      noteServerVersion(data.version || "旧");
       return data.db;
     } catch (e) {
       if (!e.network) throw e;
@@ -194,7 +202,22 @@ async function apiPost(op) {
   if (data.error) throw new Error(data.error);
 }
 
+/**
+ * 版6以前のCode.gsは区分(phase)列を持たず、7列目を「メモ」として位置で書き込む。
+ * 今のシートでは7列目が区分なので、メモが空の試合は区分をメモとして送ると
+ * 古いサーバー経由でも正しい列に区分が残る。
+ */
+function adaptForServer(op) {
+  const v = parseInt(lastServerVersion, 10);
+  const old = lastServerVersion === "旧" || (v > 0 && v < 7);
+  if (!old || op.action !== "upsert" || op.collection !== "games" || !op.record) return op;
+  const r = op.record;
+  if (String(r.note || "").trim() !== "") return op;
+  return { ...op, record: { ...r, note: r.phase === "post" ? "post" : "regular" } };
+}
+
 async function sendOp(op) {
+  op = adaptForServer(op);
   if (transportOf(syncConf) !== "jsonp") {
     try {
       await apiPost(op);
@@ -265,10 +288,20 @@ function normDate(v) {
  * prev(端末側の直前のデータ)を渡すと、旧版Code.gsのように phase 列を返さない
  * サーバーでも、端末で付けたポストシーズン区分を失わないようにする。
  */
+function phaseWord(v) {
+  const s = String(v === undefined || v === null ? "" : v).trim().toLowerCase();
+  return s === "post" || s === "regular" ? s : "";
+}
+
+/**
+ * シートの列ずれで区分(post/regular)がメモ欄に入って届いた行か。
+ * 旧版のCode.gsで見出しと列の並びが食い違うと起きる。
+ */
+function phaseInNote(g) { return !phaseWord(g.phase) && !!phaseWord(g.note); }
+
 function phaseFromRemote(g, localPhase) {
-  const v = String(g.phase === undefined || g.phase === null ? "" : g.phase).trim().toLowerCase();
-  if (v === "post") return "post";
-  if (v === "regular") return "regular";
+  const v = phaseWord(g.phase) || phaseWord(g.note);
+  if (v) return v;
   // 区分が届かない(旧版サーバー・空欄)ときは端末側の区分を残す
   return localPhase === "post" ? "post" : "regular";
 }
@@ -299,7 +332,7 @@ function normalizeRemote(r, prev) {
     scoreFor: +g.scoreFor || 0,
     scoreAgainst: +g.scoreAgainst || 0,
     phase: phaseFromRemote(g, prevPhase.get(String(g.id))),
-    note: String(g.note || "")
+    note: phaseInNote(g) ? "" : String(g.note ?? "")
   }));
   base.batting = (r.batting || []).map(l => {
     const o = { id: String(l.id), gameId: String(l.gameId), playerId: String(l.playerId) };
@@ -348,6 +381,21 @@ function repairRemoteDates(remote) {
   }
 }
 
+let phaseRepairDone = false;
+
+/**
+ * 区分がメモ欄に入っていた行を、正しい列に書き直す。
+ * 列を見出し名で扱う版8以降のCode.gsでだけ行う(古い版に送ると区分が消えるため)。
+ */
+function repairRemotePhase(remote) {
+  if (!syncEnabled() || phaseRepairDone) return;
+  if (!(+syncServerVersion >= 8)) return;
+  const broken = new Set((remote.games || []).filter(phaseInNote).map(g => String(g.id)));
+  const ops = db.games.filter(g => broken.has(g.id))
+    .map(g => ({ action: "upsert", collection: "games", record: g }));
+  if (ops.length) { phaseRepairDone = true; pushOps(ops); }
+}
+
 async function syncPull(silent) {
   if (!syncEnabled() || syncPulling) return;
   // 入力モーダルを開いている間は表示を差し替えない
@@ -360,6 +408,7 @@ async function syncPull(silent) {
     db = normalizeRemote(remote, db);
     saveDB();
     repairRemoteDates(remote);
+    repairRemotePhase(remote);
     refreshSeasonSelect();
     render();
     setSyncStatus("ok");
