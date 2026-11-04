@@ -587,6 +587,7 @@ function openBatLineModal(gameId, lineId) {
       ${numField("f-R", "得点", line.R)}
       ${numField("f-BB", "四球", line.BB)}
       ${numField("f-HBP", "死球", line.HBP)}
+      ${numField("f-ROE", "失策出塁", line.ROE)}
       ${numField("f-SO", "三振", line.SO)}
       ${numField("f-SH", "犠打", line.SH)}
       ${numField("f-SF", "犠飛", line.SF)}
@@ -595,7 +596,7 @@ function openBatLineModal(gameId, lineId) {
       ${numField("f-SB", "盗塁", line.SB)}
       ${numField("f-CS", "盗塁死", line.CS)}
     </div>
-    <div class="table-note">打席数は自動計算されます（打数＋四死球＋犠打・犠飛）。安打には二塁打・三塁打・本塁打も含めた総数を入力してください。</div>
+    <div class="table-note">打席数は自動計算されます（打数＋四死球＋犠打・犠飛）。安打には二塁打・三塁打・本塁打も含めた総数を入力してください。失策出塁は打数にも含めて入力してください（公式記録では凡打と同じ扱いで、打率・出塁率とも下がります）。</div>
     <div class="modal-actions">
       ${lineId ? `<button class="btn btn-danger" id="m-delete">削除</button>` : ""}
       <button class="btn" id="m-cancel">キャンセル</button>
@@ -607,8 +608,9 @@ function openBatLineModal(gameId, lineId) {
       if (!pid) { toast("選手を選択してください"); return; }
       const v = k => Math.max(0, +modal.querySelector("#f-" + k).value || 0);
       const data = { playerId: pid, gameId };
-      ["AB","H","D2","T3","HR","RBI","R","BB","HBP","SO","SH","SF","GDP","SB","CS"].forEach(k => data[k] = v(k));
+      ["AB","H","D2","T3","HR","RBI","R","BB","HBP","ROE","SO","SH","SF","GDP","SB","CS"].forEach(k => data[k] = v(k));
       if (data.H > data.AB) { toast("安打が打数を超えています"); return; }
+      if (data.H + data.ROE > data.AB) { toast("安打＋失策出塁が打数を超えています"); return; }
       if (data.D2 + data.T3 + data.HR > data.H) { toast("長打の合計が安打数を超えています"); return; }
       let rec;
       if (lineId) { rec = db.batting.find(l => l.id === lineId); Object.assign(rec, data); }
@@ -703,7 +705,7 @@ const BAT_COLS_BASIC = [
   ["G", "試合", fmtInt], ["PA", "打席", fmtInt], ["AB", "打数", fmtInt], ["R", "得点", fmtInt],
   ["H", "安打", fmtInt], ["D2", "二塁打", fmtInt], ["T3", "三塁打", fmtInt], ["HR", "本塁打", fmtInt],
   ["TB", "塁打", fmtInt], ["RBI", "打点", fmtInt], ["SB", "盗塁", fmtInt],
-  ["BB", "四球", fmtInt], ["HBP", "死球", fmtInt], ["SO", "三振", fmtInt],
+  ["BB", "四球", fmtInt], ["HBP", "死球", fmtInt], ["ROE", "失策出塁", fmtInt], ["SO", "三振", fmtInt],
   ["AVG", "打率", fmtAvg], ["OBP", "出塁率", fmtAvg], ["SLG", "長打率", fmtAvg], ["OPS", "OPS", v => v === null ? "-" : v.toFixed(3)]
 ];
 
@@ -715,6 +717,7 @@ const BAT_COLS_ADV = [
   ["wOBA", "wOBA", fmtAvg], ["wRAA", "wRAA", v => v === null ? "-" : v.toFixed(1)],
   ["wRC", "wRC", v => v === null ? "-" : v.toFixed(1)],
   ["wRCplus", "wRC+", fmtPlus], ["OPSplus", "OPS+", fmtPlus],
+  ["ROE", "失策出塁", fmtInt], ["OBPe", "出塁率(失策込)", fmtAvg],
   ["XBH", "長打", fmtInt], ["GDP", "併殺", fmtInt],
   ["SBpct", "盗塁成功率", fmtPct], ["SH", "犠打", fmtInt], ["SF", "犠飛", fmtInt]
 ];
@@ -1099,7 +1102,7 @@ function buildSampleData() {
   const [g1, g2, g3, g4] = games.map(g => g.id);
   const B = (gameId, playerId, o) => ({
     id: uid(), gameId, playerId,
-    AB: 0, R: 0, H: 0, D2: 0, T3: 0, HR: 0, RBI: 0, BB: 0, HBP: 0,
+    AB: 0, R: 0, H: 0, D2: 0, T3: 0, HR: 0, RBI: 0, BB: 0, HBP: 0, ROE: 0,
     SO: 0, SH: 0, SF: 0, GDP: 0, SB: 0, CS: 0, ...o
   });
   const batting = [

@@ -22,12 +22,12 @@
 const TOKEN = "padres";
 
 // 貼り替え・再デプロイが反映されたか確認するための版数(アプリの共有カードに表示されます)
-const VERSION = "9";
+const VERSION = "10";
 
 const SCHEMAS = {
   players:  ["id","name","number","pos","throws","bats","active"],
   games:    ["id","date","opponent","place","scoreFor","scoreAgainst","phase","note"],
-  batting:  ["id","gameId","playerId","AB","R","H","D2","T3","HR","RBI","BB","HBP","SO","SH","SF","GDP","SB","CS"],
+  batting:  ["id","gameId","playerId","AB","R","H","D2","T3","HR","RBI","BB","HBP","SO","SH","SF","GDP","SB","CS","ROE"],
   pitching: ["id","gameId","playerId","GS","OUTS","BF","HA","HRA","BBA","HBPA","SOA","RA","ER","W","L","SV","HLD"],
   settings: ["key","value"]
 };

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=11">
+<link rel="stylesheet" href="css/style.css?v=12">
 <style>
 /* ---- 打席入力アプリ専用 ---- */
 .situation {
@@ -99,7 +99,7 @@ a.btn { text-decoration: none; }
 <meta http-equiv="Cache-Control" content="no-cache">
 <script>
 /* 新しい版が公開されていたら自動で読み込み直す(iPhoneなどが古い画面を保持してしまう対策) */
-window.APP_VERSION = "11";
+window.APP_VERSION = "12";
 (function () {
   try {
     fetch("version.json?t=" + Date.now(), { cache: "no-store" })
@@ -141,13 +141,13 @@ window.APP_VERSION = "11";
 </main>
 
 <footer class="app-footer">
-  <a href="./" style="color:var(--gold);">成績アプリを開く</a> <span>· ver 11</span>
+  <a href="./" style="color:var(--gold);">成績アプリを開く</a> <span>· ver 12</span>
 </footer>
 
 <div id="modal-root"></div>
 
 <!-- チーム共有の送受信は成績アプリと同じ仕組みを使う -->
-<script src="js/sync.js?v=11"></script>
+<script src="js/sync.js?v=12"></script>
 <script>
 /* ============================================================
    打席入力アプリ
@@ -173,7 +173,7 @@ const RESULTS = {
   "HR":  { label: "本塁打",   cls: "hit",  AB: 1, H: 1, HR: 1, R: 1, rbiDefault: 1 },
   "BB":  { label: "四球",     cls: "walk", BB: 1 },
   "HBP": { label: "死球",     cls: "walk", HBP: 1 },
-  "E":   { label: "失策",     cls: "walk", AB: 1, note: "エラーで出塁" },
+  "E":   { label: "失策",     cls: "walk", AB: 1, ROE: 1, note: "エラーで出塁" },
   "FC":  { label: "野選",     cls: "walk", AB: 1, outs: 1, note: "走者アウト" },
   "K3":  { label: "振り逃げ", cls: "walk", AB: 1, SO: 1, note: "三振で出塁" },
   "K":   { label: "三振",     cls: "out",  AB: 1, SO: 1, outs: 1 },
@@ -190,7 +190,7 @@ const GROUPS = [
   ["アウト", ["K", "GO", "FO", "LO", "DP", "SH", "SF"]]
 ];
 const ON_BASE = new Set(["1B", "2B", "3B", "BB", "HBP", "E", "FC", "K3"]);
-const STAT_KEYS = ["AB", "R", "H", "D2", "T3", "HR", "BB", "HBP", "SO", "SH", "SF", "GDP"];
+const STAT_KEYS = ["AB", "R", "H", "D2", "T3", "HR", "BB", "HBP", "ROE", "SO", "SH", "SF", "GDP"];
 const RUNNER = {
   run: "得点", sb: "盗塁", cs: "盗塁死"
 };
@@ -284,7 +284,7 @@ function derive() {
 
 function lineFor(pid) {
   const L = { PA: 0, AB: 0, R: 0, H: 0, D2: 0, T3: 0, HR: 0, RBI: 0, BB: 0, HBP: 0,
-              SO: 0, SH: 0, SF: 0, GDP: 0, SB: 0, CS: 0 };
+              ROE: 0, SO: 0, SH: 0, SF: 0, GDP: 0, SB: 0, CS: 0 };
   for (const e of st.events) {
     if (e.playerId !== pid) continue;
     if (e.kind === "pa") {
@@ -653,11 +653,11 @@ function renderSummary() {
       <span class="sub">${st.game.phase === "post" ? "ポストシーズン" : "レギュラーシーズン"}</span></div>
     ${ps.length ? `
     <div class="table-wrap"><table class="stats">
-      <thead><tr><th>選手</th><th>打席</th><th>打数</th><th>安打</th><th>二</th><th>三</th><th>本</th><th>打点</th><th>得点</th><th>四死</th><th>三振</th><th>犠</th><th>盗塁</th></tr></thead>
+      <thead><tr><th>選手</th><th>打席</th><th>打数</th><th>安打</th><th>二</th><th>三</th><th>本</th><th>打点</th><th>得点</th><th>四死</th><th>失策</th><th>三振</th><th>犠</th><th>盗塁</th></tr></thead>
       <tbody>${ps.map(pid => { const L = lineFor(pid); return `<tr>
         <td>${esc(plabel(pid))}</td><td class="num">${L.PA}</td><td class="num">${L.AB}</td><td class="num">${L.H}</td>
         <td class="num">${L.D2}</td><td class="num">${L.T3}</td><td class="num">${L.HR}</td><td class="num">${L.RBI}</td>
-        <td class="num">${L.R}</td><td class="num">${L.BB + L.HBP}</td><td class="num">${L.SO}</td>
+        <td class="num">${L.R}</td><td class="num">${L.BB + L.HBP}</td><td class="num">${L.ROE}</td><td class="num">${L.SO}</td>
         <td class="num">${L.SH + L.SF}</td><td class="num">${L.SB}</td></tr>`; }).join("")}
       </tbody></table></div>` : `<div class="empty-note">まだ打席の記録がありません。</div>`}
 
@@ -705,7 +705,7 @@ function saveToMain() {
     const L = lineFor(pid);
     return { id: uid(), gameId: g.id, playerId: pid,
       AB: L.AB, R: L.R, H: L.H, D2: L.D2, T3: L.T3, HR: L.HR, RBI: L.RBI, BB: L.BB, HBP: L.HBP,
-      SO: L.SO, SH: L.SH, SF: L.SF, GDP: L.GDP, SB: L.SB, CS: L.CS };
+      ROE: L.ROE, SO: L.SO, SH: L.SH, SF: L.SF, GDP: L.GDP, SB: L.SB, CS: L.CS };
   });
   main.batting.push(...lines);
   saveMain();
