@@ -717,7 +717,6 @@ const BAT_COLS_ADV = [
   ["wOBA", "wOBA", fmtAvg], ["wRAA", "wRAA", v => v === null ? "-" : v.toFixed(1)],
   ["wRC", "wRC", v => v === null ? "-" : v.toFixed(1)],
   ["wRCplus", "wRC+", fmtPlus], ["OPSplus", "OPS+", fmtPlus],
-  ["ROE", "失策出塁", fmtInt], ["OBPe", "出塁率(失策込)", fmtAvg],
   ["XBH", "長打", fmtInt], ["GDP", "併殺", fmtInt],
   ["SBpct", "盗塁成功率", fmtPct], ["SH", "犠打", fmtInt], ["SF", "犠飛", fmtInt]
 ];
